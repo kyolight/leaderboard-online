@@ -1,138 +1,185 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Leaderboard Realtime</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leaderboard Realtime + Sound</title>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(120deg, #141E30, #243B55);
-      color: #fff;
+      background: linear-gradient(135deg, #1b1b1b, #282828);
+      color: white;
+      font-family: "Poppins", sans-serif;
       text-align: center;
+      margin: 0;
       padding: 20px;
-      overflow-x: hidden;
     }
+
     h1 {
-      font-size: 2.2em;
       margin-bottom: 20px;
-      letter-spacing: 1px;
+      font-size: 2rem;
     }
+
     table {
-      margin: auto;
-      border-collapse: collapse;
       width: 80%;
-      background: rgba(255, 255, 255, 0.05);
+      margin: 0 auto;
+      border-collapse: collapse;
       border-radius: 10px;
       overflow: hidden;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+      background-color: #2e2e2e;
     }
+
     th, td {
-      padding: 12px 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 12px 16px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #3a3a3a;
+      color: #f1f1f1;
+    }
+
+    tr {
       transition: all 0.3s ease;
     }
-    th {
-      background: rgba(0, 0, 0, 0.3);
-      text-transform: uppercase;
+
+    tr:nth-child(odd) {
+      background-color: #353535;
     }
-    tr {
-      transition: transform 0.5s ease, background 0.5s ease, box-shadow 0.5s ease;
+
+    tr:nth-child(even) {
+      background-color: #2b2b2b;
     }
+
     tr.up {
-      background: rgba(0,255,0,0.15);
-      transform: translateY(-4px);
-      box-shadow: 0 0 8px rgba(0,255,0,0.3);
+      background-color: #2e7d32 !important; /* hijau */
     }
+
     tr.down {
-      background: rgba(255,0,0,0.15);
-      transform: translateY(4px);
-      box-shadow: 0 0 8px rgba(255,0,0,0.3);
+      background-color: #c62828 !important; /* merah */
     }
+
+    .rank-1 {
+      background-color: #ffd700 !important;
+      color: #000;
+      font-weight: bold;
+    }
+
+    .rank-2 {
+      background-color: #c0c0c0 !important;
+      color: #000;
+    }
+
+    .rank-3 {
+      background-color: #cd7f32 !important;
+      color: #000;
+    }
+
+    @keyframes fadeHighlight {
+      from { filter: brightness(1.5); }
+      to { filter: brightness(1); }
+    }
+
     .highlight {
-      animation: flash 1s ease;
-    }
-    @keyframes flash {
-      0% { background-color: rgba(255,255,0,0.3); }
-      100% { background-color: transparent; }
-    }
-    .rank-1 td { background: rgba(255, 215, 0, 0.25); font-weight: bold; }   /* Gold */
-    .rank-2 td { background: rgba(192,192,192,0.25); }  /* Silver */
-    .rank-3 td { background: rgba(205,127,50,0.25); }   /* Bronze */
-    .updated {
-      margin-top: 10px;
-      font-size: 0.9em;
-      color: #ccc;
+      animation: fadeHighlight 1s ease;
     }
   </style>
 </head>
 <body>
-  <h1>🏆 Leaderboard Tim</h1>
+  <h1>🏆 Leaderboard Realtime + Sound</h1>
   <table id="leaderboard">
     <thead>
-      <tr><th>Rank</th><th>Nama</th><th>Tim</th><th>Level</th><th>Skor</th></tr>
+      <tr>
+        <th>Rank</th>
+        <th>Nama</th>
+        <th>Tim</th>
+        <th>Level</th>
+        <th>Skor</th>
+      </tr>
     </thead>
     <tbody></tbody>
   </table>
-  <div class="updated" id="lastUpdate">Memuat data...</div>
+
+  <p style="margin-top:20px; opacity:0.7;">⏱️ Auto update setiap 20 detik + efek bunyi</p>
+
+  <!-- Bunyi -->
+  <audio id="sound-up" src="https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3" preload="auto"></audio>
+  <audio id="sound-down" src="https://assets.mixkit.co/sfx/preview/mixkit-failure-arcade-alert-notification-240.mp3" preload="auto"></audio>
 
   <script>
-    // 🔗 Ganti URL di bawah ini dengan URL OpenSheet kamu
     const sheetURL = 'https://opensheet.elk.sh/16XAKQqfpqijOiVeU8WV6g-Oq2DBOBeM2NCENaklRgLc/November 2025';
+    let previousData = [];
 
-    let previousRanks = {};
-    let previousScores = {};
+    const soundUp = document.getElementById("sound-up");
+    const soundDown = document.getElementById("sound-down");
+
+    async function fetchData() {
+      const response = await fetch(sheetURL);
+      return await response.json();
+    }
+
+    function updateTable(data) {
+      const tbody = document.querySelector("#leaderboard tbody");
+      tbody.innerHTML = "";
+
+      // Urutkan skor tertinggi ke rendah
+      data.sort((a, b) => b.Skor - a.Skor);
+
+      data.forEach((row, index) => {
+        const tr = document.createElement("tr");
+        const prev = previousData.find(p => p.Nama === row.Nama);
+        let className = "";
+
+        if (prev) {
+          const prevScore = parseFloat(prev.Skor);
+          const newScore = parseFloat(row.Skor);
+
+          if (newScore > prevScore) {
+            className = "up";
+            soundUp.currentTime = 0;
+            soundUp.play();
+          } else if (newScore < prevScore) {
+            className = "down";
+            soundDown.currentTime = 0;
+            soundDown.play();
+          }
+
+          if (prev.rank > index + 1 && newScore === prevScore) className = "up";
+          if (prev.rank < index + 1 && newScore === prevScore) className = "down";
+        }
+
+        tr.className = className + " highlight";
+
+        if (index === 0) tr.classList.add("rank-1");
+        else if (index === 1) tr.classList.add("rank-2");
+        else if (index === 2) tr.classList.add("rank-3");
+
+        tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${row.Nama}</td>
+          <td>${row.Tim || "-"}</td>
+          <td>${row.Level || "-"}</td>
+          <td>${row.Skor}</td>
+        `;
+        tbody.appendChild(tr);
+
+        row.rank = index + 1;
+      });
+
+      previousData = data;
+    }
 
     async function updateLeaderboard() {
       try {
-        const res = await fetch(sheetURL);
-        const data = await res.json();
-
-        // Urutkan data berdasarkan skor tertinggi
-        data.sort((a, b) => Number(b.Skor) - Number(a.Skor));
-
-        const tbody = document.querySelector("#leaderboard tbody");
-        let html = '';
-
-        data.forEach((row, i) => {
-          const rank = i + 1;
-          const prevRank = previousRanks[row.Nama];
-          const prevScore = previousScores[row.Nama];
-          let rowClass = '';
-
-          // Deteksi pergerakan posisi
-          if (prevRank && prevRank > rank) rowClass = 'up';
-          else if (prevRank && prevRank < rank) rowClass = 'down';
-
-          // Deteksi perubahan skor
-          const changed = prevScore && prevScore !== row.Skor ? 'highlight' : '';
-
-          // Simpan posisi & skor sekarang
-          previousRanks[row.Nama] = rank;
-          previousScores[row.Nama] = row.Skor;
-
-          // Tambahkan warna khusus top 3
-          const rankClass = rank <= 3 ? `rank-${rank}` : '';
-
-          html += `
-            <tr class="${rankClass} ${rowClass} ${changed}">
-              <td>${rank}</td>
-              <td>${row.Nama}</td>
-              <td>${row.Tim || '-'}</td>
-              <td>${row.Level || '-'}</td>
-              <td>${row.Skor}</td>
-            </tr>`;
-        });
-
-        tbody.innerHTML = html;
-        document.getElementById("lastUpdate").textContent =
-          "Terakhir diperbarui: " + new Date().toLocaleTimeString();
+        const data = await fetchData();
+        updateTable(data);
       } catch (err) {
-        console.error(err);
-        document.getElementById("lastUpdate").textContent = "Gagal memuat data 😞";
+        console.error("Gagal memuat data:", err);
       }
     }
 
     updateLeaderboard();
-    setInterval(updateLeaderboard, 20000); // 🔁 update tiap 20 detik
+    setInterval(updateLeaderboard, 20000); // update tiap 20 detik
   </script>
 </body>
 </html>
